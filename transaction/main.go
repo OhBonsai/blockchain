@@ -1,10 +1,7 @@
 package main
 
 func main(){
-	bc := NewBlockChain("bonsai")
-
-	defer bc.db.Close()
-
-	cli := CLI{bc}
+	cli := CLI{}
 	cli.Run()
+	//CreateBlockChain("bonsai")
 }

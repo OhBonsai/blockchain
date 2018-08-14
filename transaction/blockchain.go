@@ -3,6 +3,9 @@ package main
 import (
 	"github.com/boltdb/bolt"
 	"encoding/hex"
+	"os"
+	"fmt"
+	"log"
 )
 
 type BlockChain struct {
@@ -15,33 +18,96 @@ type BlockChainItr struct {
 	db *bolt.DB
 }
 
-const dbFile = "./persistent/blockchain.db"
+const dbFile = "./blockchain.db"
 const blocksBucket = "blocks"
 const genesisCoinbaseData = "Sad world"
 
-func NewBlockChain(address string) *BlockChain {
+
+
+func LoadBlockChain() *BlockChain {
+	if dbExist() == false {
+		fmt.Println("Block is not exist. Create One Firstly")
+	}
 
 	var tip []byte
 	db, err := bolt.Open(dbFile, 0600, nil)
 
+	if err != nil {
+		log.Panic(err)
+	}
+
 	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
-		if b == nil {
-			cbtx := NewCoinBaseTransaction(address, genesisCoinbaseData)
-			genesis := NewGenesisBlock(cbtx)
-
-			b, _ := tx.CreateBucket([]byte(blocksBucket))
-			err = b.Put(genesis.Hash, genesis.Serializer())
-			err = b.Put([]byte("l"), genesis.Hash)
-			tip = genesis.Hash
-		}else{
-			tip = b.Get([]byte("l"))
-		}
+		tip = b.Get([]byte("l"))
 		return nil
 	})
 
-	bc := BlockChain{tip , db}
+	if err != nil {
+		log.Panic(err)
+	}
+
+	bc := BlockChain{tip, db}
+
 	return &bc
+
+
+}
+
+func CreateBlockChain(address string) *BlockChain {
+	if dbExist() {
+		fmt.Println("Block already exist")
+		os.Exit(1)
+	}
+
+
+	var tip []byte
+	db, err := bolt.Open(dbFile, 0600, nil)
+
+	if err != nil {
+		log.Panic(err)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		cbtx := NewCoinBaseTransaction(address, genesisCoinbaseData)
+		genesis := NewGenesisBlock(cbtx)
+
+		b, err:= tx.CreateBucket([]byte(blocksBucket))
+
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = b.Put(genesis.Hash, genesis.Serializer())
+		if err != nil {
+			log.Panic(err)
+		}
+
+		err = b.Put([]byte("l"), genesis.Hash)
+
+		if err != nil{
+			log.Panic(err)
+		}
+
+
+		tip = genesis.Hash
+		return nil
+	})
+
+	if err != nil {
+		log.Panic(err)
+	}
+
+	bc := BlockChain{tip, db}
+
+	return &bc
+}
+
+func dbExist() bool {
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+		return false
+	}
+
+	return true
 }
 
 func NewGenesisBlock(coinbase *Transaction) *Block {
