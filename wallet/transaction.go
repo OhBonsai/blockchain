@@ -12,6 +12,7 @@ import (
 	"crypto/rand"
 	"strings"
 	"crypto/elliptic"
+	"math/big"
 )
 
 const subsidy = 10
@@ -123,32 +124,105 @@ func (tx *Transaction) TrimmedCopy() Transaction {
 }
 
 func (tx * Transaction) Verify(prevTXs map[string]Transaction) bool {
+	if tx.IsCoinBase() {
+		return true
+	}
+
+	for _, vin := range tx.Vin {
+		if prevTXs[hex.EncodeToString(vin.Txid)].ID == nil {
+			log.Panic("Error: previous transction is not correct")
+		}
+	}
+
+	txCopy := tx.TrimmedCopy()
+	curve := elliptic.P256()
+
+	for inID, vin := range tx.Vin {
+		prevTX := prevTXs[hex.EncodeToString(vin.Txid)]
+		txCopy.Vin[inID].Signature = nil
+		txCopy.Vin[inID].PubKey = prevTX.Vout[vin.Vout].PubKeyHash
+		txCopy.ID = txCopy.Hash()
+		txCopy.Vin[inID].PubKey = nil
+
+		r := big.Int{}
+		s := big.Int{}
+		sigLen := len(vin.Signature)
+		r.SetBytes(vin.Signature[:(sigLen / 2)])
+		s.SetBytes(vin.Signature[(sigLen / 2):])
+
+		x := big.Int{}
+		y := big.Int{}
+		keyLen := len(vin.PubKey)
+		x.SetBytes(vin.PubKey[:(keyLen / 2)])
+		y.SetBytes(vin.PubKey[(keyLen / 2):])
+
+		rawPubkey := ecdsa.PublicKey{curve, &x, &y}
+		if ecdsa.Verify(&rawPubkey, txCopy.ID, &r, &s) == false {
+			return false
+		}
+	}
+
+	return true
 
 	return false
 }
 
-func NewCoinBaseTransaction(to, data string) *Transaction{
-	if data == "" {
-		data = fmt.Sprintf("Sealed with a kiss")
+func NewCoinbaseTX(to, data string) *Transaction {
+	if data == ""{
+		data = fmt.Sprintf("Seal with a kiss to %s", to)
 	}
 
-	txin := TXInput{
-		[]byte{},
-		-1,
-	data,
-	}
-	txout := TXOutput{
-		subsidy,
-		to,
+	txin := TXInput{[]byte{}, -1, nil, []byte(data)}
+	txout := NewTXOutput(subsidy, to)
+
+	tx := Transaction{nil, []TXInput{txin}, []TXOutput{*txout}}
+	tx.ID = tx.Hash()
+
+	return &tx
+}
+
+
+func NewUTXOTransaction(from, to string, amount int, bc *BlockChain) *Transaction{
+	var inputs []TXInput
+	var outputs []TXOutput
+
+	wallets, err := NewWallets()
+
+	if err != nil {
+		log.Panic(err)
 	}
 
-	t := Transaction{
-		nil,
-		[]TXInput{txin},
-		[]TXOutput{txout},
+	wallet := wallets.GetWallet(from)
+	pubKeyHash := HashPubKey(wallet.PublicKey)
+
+	acc, validOutputs := bc.FindSpendableOutputs(pubKeyHash, amount)
+
+	if acc < amount {
+		log.Panic("ERROR: Not enough funds")
 	}
-	t.SetID()
-	return &t
+
+	for txid, outs := range validOutputs {
+		txID, err := hex.DecodeString(txid)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		for _, out := range outs{
+			input := TXInput{txID, out, nil , wallet.PublicKey}
+			inputs = append(inputs, input)
+		}
+	}
+
+	outputs = append(outputs, *NewTXOutput(amount, to))
+	if acc > amount {
+		outputs = append(outputs, *NewTXOutput(acc-amount, from))
+	}
+
+	tx := Transaction{nil, inputs, outputs}
+	tx.ID = tx.Hash()
+	bc.SignTransaction(&tx, wallet.PrivateKey)
+
+	return &tx
 }
 
 
@@ -169,35 +243,3 @@ func (t *Transaction)SetID() {
 }
 
 
-
-
-func NewUTXOTransaction(from, to string, amount int, bc *BlockChain) *Transaction{
-	var inputs []TXInput
-	var outputs []TXOutput
-
-
-	acc, validOutputs := bc.FindSpendableOutputs(from, amount)
-
-	if acc < amount {
-		log.Panic("Error: Not engough funds")
-	}
-
-	for txid, outs := range validOutputs {
-		txID, _ := hex.DecodeString(txid)
-
-		for _, out := range outs {
-			input := TXInput{txID, out, from}
-			inputs = append(inputs, input)
-		}
-	}
-
-	outputs = append(outputs, TXOutput{amount, to})
-	if acc > amount{
-		outputs = append(outputs, TXOutput{acc-amount, from})
-	}
-
-	tx := Transaction{nil, inputs, outputs}
-	tx.SetID()
-
-	return &tx
-}

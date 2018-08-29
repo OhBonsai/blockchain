@@ -132,16 +132,8 @@ func (cli *CLI) Run() {
 
 func (cli *CLI) createBlockchain(address string){
 	bc := CreateBlockChain(address)
-	defer bc.db.Close()
-
-	balance := 0
-	UTXOs := bc.FindUTXO(address)
-
-	for _, out := range UTXOs{
-		balance += out.Value
-	}
-
-	fmt.Printf("Balance of %s: %d\n", address, balance)
+	bc.db.Close()
+	fmt.Println("Done!")
 }
 
 func (cli *CLI) createWallet(){
@@ -170,22 +162,27 @@ func (cli *CLI) addBlock(transitions []*Transaction) {
 }
 
 func (cli *CLI) getBalance(address string) {
-	bc := LoadBlockChain()
+	if !ValidateAddress(address) {
+		log.Panic("ERROR: Address is not valid")
+	}
+	bc := LoadBlockChain(address)
 	defer bc.db.Close()
 
 	var balance int
-	UTXOs := bc.FindUTXO(address)
+
+	pubKeyHash := Base58Decode([]byte(address))
+	pubKeyHash = pubKeyHash[1: len(pubKeyHash) - 4]
+	UTXOs := bc.FindUTXO(pubKeyHash)
 
 	for _, out := range UTXOs {
 		balance += out.Value
 	}
 
 	fmt.Printf("Balance of '%s': %d\n", address, balance)
-
 }
 
 func (cli *CLI) send(from, to string, amount int) {
-	bc := LoadBlockChain()
+	bc := LoadBlockChain("")
 	defer bc.db.Close()
 
 	tx := NewUTXOTransaction(from, to, amount, bc)
@@ -194,7 +191,7 @@ func (cli *CLI) send(from, to string, amount int) {
 }
 
 func (cli *CLI) printChan() {
-	bc := LoadBlockChain()
+	bc := LoadBlockChain("")
 	defer bc.db.Close()
 
 	bci := bc.Iterator()
@@ -202,11 +199,14 @@ func (cli *CLI) printChan() {
 	for {
 		block := bci.Next()
 
-		fmt.Printf("Prev. hash: %x\n", block.PrevBlockHash)
-		fmt.Printf("Hash: %x\n", block.Hash)
+		fmt.Printf("============ Block %x ============\n", block.Hash)
+		fmt.Printf("Prev. block: %x\n", block.PrevBlockHash)
 		pow := NewProofOfWork(block)
-		fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.Validate()))
-		fmt.Println()
+		fmt.Printf("PoW: %s\n\n", strconv.FormatBool(pow.Validate()))
+		for _, tx := range block.Transactions {
+			fmt.Println(tx)
+		}
+		fmt.Printf("\n\n")
 
 		if len(block.PrevBlockHash) == 0 {
 			break
