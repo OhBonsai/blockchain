@@ -113,9 +113,15 @@ func NewGenesisBlock(coinbase *Transaction) *Block {
 	return NewBlock([]*Transaction{coinbase}, []byte{})
 }
 
-func (bc *BlockChain) AddBlock(transitions []*Transaction) {
+func (bc *BlockChain) AddBlock(transactions []*Transaction) {
 
 	var lastHash []byte
+
+	for _, tx := range transactions {
+		if bc.VerifyTransaction(tx) != true {
+			log.Panic("ERROR: Invalid transaction")
+		}
+	}
 
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -124,7 +130,7 @@ func (bc *BlockChain) AddBlock(transitions []*Transaction) {
 		return nil
 	})
 
-	newBlock := NewBlock(transitions, lastHash)
+	newBlock := NewBlock(transactions, lastHash)
 
 	err = bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))

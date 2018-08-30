@@ -65,10 +65,10 @@ func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transac
 	txCopy := tx.TrimmedCopy()
 
 	for inID, vin := range txCopy.Vin {
-		prevTXs := prevTXs[hex.EncodeToString(vin.Txid)]
+		prevTX := prevTXs[hex.EncodeToString(vin.Txid)]
 
 		txCopy.Vin[inID].Signature = nil
-		txCopy.Vin[inID].PubKey = prevTXs.Vout[vin.Vout].PubKeyHash
+		txCopy.Vin[inID].PubKey = prevTX.Vout[vin.Vout].PubKeyHash
 
 		txCopy.ID = txCopy.Hash()
 		txCopy.Vin[inID].PubKey = nil
@@ -94,7 +94,7 @@ func (tx *Transaction) String() string {
 		lines = append(lines, fmt.Sprintf("       TXID:      %x", input.Txid))
 		lines = append(lines, fmt.Sprintf("       Out:       %d", input.Vout))
 		lines = append(lines, fmt.Sprintf("       Signature: %x", input.Signature))
-		lines = append(lines, fmt.Sprintf("       PubKey:    %x", input.PubKey))
+		lines = append(lines, fmt.Sprintf("       PubKey:    %s", string(input.PubKey[:])))
 	}
 
 	for i, output := range tx.Vout {
