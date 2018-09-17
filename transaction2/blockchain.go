@@ -72,7 +72,7 @@ func CreateBlockChain(address string) *BlockChain {
 	return &bc
 }
 
-func NewBlockChain(address string) *BlockChain {
+func NewBlockChain() *BlockChain {
 	if dbExist() == false {
 		fmt.Println("Block is not exist. Create One Firstly")
 	}
