@@ -31,6 +31,8 @@ func CreateBlockChain(address string) *BlockChain {
 
 
 	var tip []byte
+	cbtx := NewCoinbaseTX(address, genesisCoinbaseData)
+	genesis := NewGenesisBlock(cbtx)
 	db, err := bolt.Open(dbFile, 0600, nil)
 
 	if err != nil {
@@ -38,8 +40,7 @@ func CreateBlockChain(address string) *BlockChain {
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
-		cbtx := NewCoinbaseTX(address, genesisCoinbaseData)
-		genesis := NewGenesisBlock(cbtx)
+
 
 		b, err:= tx.CreateBucket([]byte(blocksBucket))
 
@@ -75,6 +76,7 @@ func CreateBlockChain(address string) *BlockChain {
 func NewBlockChain() *BlockChain {
 	if dbExist() == false {
 		fmt.Println("Block is not exist. Create One Firstly")
+		os.Exit(1)
 	}
 
 	var tip []byte
@@ -189,11 +191,9 @@ func (bc *BlockChain) FindUTXO() map[string]TXOutputs {
 					spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
 				}
 			}
-
-			if len(block.PrevBlockHash) == 0 {
-				break
-			}
-
+		}
+		if len(block.PrevBlockHash) == 0 {
+			break
 		}
 	}
 

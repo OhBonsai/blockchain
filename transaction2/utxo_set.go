@@ -44,7 +44,7 @@ func (u UTXOSet) FindSpendableOutputs(pubkeyHash []byte, amount int) (int, map[s
 }
 
 
-func (u UTXOSet) FindUTXO(pubkeyHaash []byte) []TXOutput {
+func (u UTXOSet) FindUTXO(pubkeyHash []byte) []TXOutput {
 	var UTXOs []TXOutput
 
 	db := u.BlockChain.db
@@ -57,7 +57,7 @@ func (u UTXOSet) FindUTXO(pubkeyHaash []byte) []TXOutput {
 			outs := DeserializeOutputs(v)
 
 			for _, out := range outs.Outputs {
-				if out.IsLockedWithKey(pubkeyHaash) {
+				if out.IsLockedWithKey(pubkeyHash) {
 					UTXOs = append(UTXOs, out)
 				}
 			}
@@ -143,7 +143,7 @@ func (u UTXOSet) ReIndex() {
 }
 
 
-func (u UTXOSet) Update(block *Block) {
+func (u *UTXOSet) Update(block *Block) {
 	db := u.BlockChain.db
 
 	err := db.Update(func(tx *bolt.Tx) error {
