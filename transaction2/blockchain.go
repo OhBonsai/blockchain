@@ -298,6 +298,10 @@ func (bc *BlockChain) FindTransaction(ID []byte) (Transaction, error) {
 }
 
 func (bc *BlockChain) VerifyTransaction(tx *Transaction) bool {
+	if tx.IsCoinBase(){
+		return true
+	}
+
 	prevTxs := make(map[string]Transaction)
 
 	for _, vin := range tx.Vin{
